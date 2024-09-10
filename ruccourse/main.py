@@ -1,4 +1,4 @@
-from ruclogin import *
+from /Users/xiachunxuan/Study/PlayGround/ruclogin import *
 from datetime import datetime, timedelta
 from time import sleep
 import pickle
@@ -9,6 +9,8 @@ from configparser import ConfigParser
 import logging
 import os
 import os.path as osp
+
+from send_email import send_email
 
 if __name__ == "__main__":  # 并不是一种优雅的写法，待改进
     import collect
@@ -139,6 +141,7 @@ async def grab(json_data):
             if errorCode == "success":
                 logger.imp_info(f"抢到 {cls_name}")
                 json_datas.remove(json_data)
+                send_email("Success", f"抢到{cls_name}")
                 del log_infos.course_info[json_data["ktmc_name"]]
             elif errorCode == "eywxt.save.msLimit.error":
                 logger.imp_info(f"{cls_name} 有名额，但同类别已选数目达到上限")
@@ -198,6 +201,19 @@ async def log(stop_signal):
         logger.info(
             f"req/s: {round(reqs, 2):<5}\ttru_reqs/s: {round(tru_reqs,2):<5}\ttotal: {log_infos.total_requests}"
         )
+        
+        hour, minute, second = datetime.now().hour, datetime.now().minute, datetime.now().second
+        # print(f"hour: {hour}, minute: {minute}, second: {second}")
+        if minute == 0 and hour % 1 == 0 and second < 2:
+            title = "整点报时"
+            content = "日志记录\n"
+            content += "目前剩余课程为\n"
+            content += f"{[value['kcmc'] for value in log_infos.course_info.values()]}\n\n"
+            content += f"req/s: {round(reqs, 2):<5}\ttru_reqs/s: {round(tru_reqs,2):<5}\ttotal: {log_infos.total_requests}"
+            send_email(title, content)
+            del title
+            del content
+        del hour, minute, second
 
         flush = False
         if settings.enabled_dynamic_requests and log_infos.toc - log_infos.tic > 5:

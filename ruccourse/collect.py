@@ -63,6 +63,8 @@ def main():
                     data = data.replace("false", "False")
                     data = data.replace("true", "True")
                     d = eval(data)
+                    print(type(d))
+                    print(d)
                     json_datas.append(d)
             pickle.dump(json_datas, open(osp.join(ROOT, "json_datas.pkl"), "wb"))
             print("你选择的课程是：", " ".join([data["ktmc_name"] for data in json_datas]))
