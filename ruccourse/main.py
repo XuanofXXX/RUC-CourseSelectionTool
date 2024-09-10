@@ -1,4 +1,4 @@
-from /Users/xiachunxuan/Study/PlayGround/ruclogin import *
+from ruclogin import *
 from datetime import datetime, timedelta
 from time import sleep
 import pickle
@@ -155,33 +155,35 @@ processedClasses = set()
 
 
 async def success_report():
-    try:
-        global settings
-        if settings.share:
-            async with aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(ssl=False)
-            ) as session:
-                async with session.get(
-                    f"https://ruccourse.panjd.net/success_report?count=1"
-                ) as response:
-                    pass
-    except NameError:
-        pass
+    # try:
+    #     global settings
+    #     if settings.share:
+    #         async with aiohttp.ClientSession(
+    #             connector=aiohttp.TCPConnector(ssl=False)
+    #         ) as session:
+    #             async with session.get(
+    #                 f"https://ruccourse.panjd.net/success_report?count=1"
+    #             ) as response:
+    #                 pass
+    # except NameError:
+    #     pass
+    pass
 
 
 async def request_report():
-    try:
-        global log_infos, settings
-        if settings.share:
-            async with aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(ssl=False)
-            ) as session:
-                async with session.get(
-                    f"https://ruccourse.panjd.net/request_report?count={log_infos.report_requests}"
-                ) as response:
-                    pass
-    except NameError:
-        pass
+    # try:
+    #     global log_infos, settings
+    #     if settings.share:
+    #         async with aiohttp.ClientSession(
+    #             connector=aiohttp.TCPConnector(ssl=False)
+    #         ) as session:
+    #             async with session.get(
+    #                 f"https://ruccourse.panjd.net/request_report?count={log_infos.report_requests}"
+    #             ) as response:
+    #                 pass
+    # except NameError:
+    #     pass
+    pass
 
 
 async def grab(json_data):
@@ -364,14 +366,6 @@ async def main():
 
     semester_code = json_datas[0]["jczy013id"]
     logger.imp_info(f"学期：{code2semester(semester_code)}")
-
-    if settings.target_requests_per_second > 100:
-        logger.error(
-            f"请求速度过高（{settings.target_requests_per_second }> 100）会导致意料外的问题，同时会给服务器正常运行带来压力，如果你清楚你在做什么，请自行修改源代码"
-        )
-        logger.imp_info("脚本已停止")
-        request_report()
-        exit(1)
 
     if settings.enabled_dynamic_requests and settings.target_requests_per_second > 30:
         logger.warning(
