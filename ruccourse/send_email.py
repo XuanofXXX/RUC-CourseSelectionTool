@@ -1,8 +1,9 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import aiosmtplib
 
-def send_email(title, text):
+async def send_email(title, text):
 # SMTP服务器设置
     smtp_server = 'smtp.163.com'
     port = 465  # 使用SSL
@@ -20,12 +21,9 @@ def send_email(title, text):
 
     
     msg.attach(MIMEText(text, 'plain'))
-
-# 创建SMTP连接
-    server = smtplib.SMTP_SSL(smtp_server, port)
-    server.login(sender_email, sender_password)
-
-# 发送邮件并退出
-    server.send_message(msg)
-    server.quit()
+    # 使用 aiosmtplib.SMTP 替代 SMTP_SSL
+    async with aiosmtplib.SMTP(hostname=smtp_server, port=port, use_tls=True) as server:
+        await server.login(sender_email, sender_password)
+        # 发送邮件
+        await server.send_message(msg)
 

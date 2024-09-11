@@ -1,5 +1,4 @@
 from ruclogin import *
-from datetime import datetime, timedelta
 from time import sleep
 import pickle
 import aiohttp
@@ -7,14 +6,14 @@ import asyncio
 import json
 import logging
 import os
+import aiohttp
 import os.path as osp
 
-from send_email import send_email
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 from timeit import default_timer as timer
 
-import aiohttp
-
+from send_email import send_email
 from docopt import docopt
 
 if __name__ == "__main__":  # 并不是一种优雅的写法，待改进
@@ -63,9 +62,18 @@ def imp_info(self, message, *args, **kwargs):
 
 logging.Logger.imp_info = imp_info
 logger.setLevel(logging.INFO)
-file_hd = logging.FileHandler(LOG_PATH, mode="a", encoding="utf-8")
+
+# 使用 RotatingFileHandler 替代 FileHandler
+file_hd = RotatingFileHandler(
+    LOG_PATH, 
+    mode="a", 
+    maxBytes=10 * 1024 * 1024,  # 10 MB
+    backupCount=1,  # 保留一个备份文件
+    encoding="utf-8"
+)
 file_hd.setLevel(logging.INFO)
 file_hd.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+
 console_hd = logging.StreamHandler()
 console_hd.setLevel(IMPORTANT_INFO)
 console_hd.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
@@ -155,34 +163,33 @@ processedClasses = set()
 
 
 async def success_report():
-    # try:
-    #     global settings
-    #     if settings.share:
-    #         async with aiohttp.ClientSession(
-    #             connector=aiohttp.TCPConnector(ssl=False)
-    #         ) as session:
-    #             async with session.get(
-    #                 f"https://ruccourse.panjd.net/success_report?count=1"
-    #             ) as response:
-    #                 pass
-    # except NameError:
-    #     pass
-    pass
+    global json_datas
+    try:
+        # 发送成功抢课的邮件通知
+        course_names = [json_data['ktmc_name'] for json_data in json_datas]
+        title = "抢课成功通知"
+        text = f"恭喜你成功抢到了以下课程:\n{', '.join(course_names)}"
+        await send_email(title, text)
+    except Exception as e:
+        logger.error(f"发送成功报告时出错: {str(e)}")
 
 
-async def request_report():
-    # try:
-    #     global log_infos, settings
-    #     if settings.share:
-    #         async with aiohttp.ClientSession(
-    #             connector=aiohttp.TCPConnector(ssl=False)
-    #         ) as session:
-    #             async with session.get(
-    #                 f"https://ruccourse.panjd.net/request_report?count={log_infos.report_requests}"
-    #             ) as response:
-    #                 pass
-    # except NameError:
-    #     pass
+async def hourly_report(log_infos, reqs, tru_reqs):
+    try:
+        title = "每小时抢课报告"
+        text = f"过去一小时内：\n"
+        text += f"总请求次数：{reqs}\n"
+        text += f"实际请求次数：{tru_reqs}\n"
+        text += f"当前待抢课程：\n"
+        for course, info in log_infos.course_info.items():
+            text += f"  {course}: 总尝试 {info['total']} 次，被拒绝 {info['reject']} 次\n"
+        
+        await send_email(title, text)
+        logger.info("已发送每小时抢课报告")
+    except Exception as e:
+        logger.error(f"发送每小时报告时出错: {str(e)}")
+
+async def request_report(*args, **kwargs):
     pass
 
 
@@ -214,8 +221,7 @@ async def grab(json_data):
                     logger.imp_info(f"抢到 {cls_name}")
                     processedClasses.add(cls_name)
                 json_datas.remove(json_data)
-                send_email("Success", f"抢到{cls_name}")
-                player.play()
+                # player.play()
             elif errorCode == "eywxt.save.msLimit.error":
                 if cls_name not in processedClasses:
                     logger.imp_info(f"{cls_name} 有名额，但同类别已选数目达到上限")
@@ -278,18 +284,9 @@ async def log(stop_signal):
             f"req/s: {round(reqs, 2):<5}\ttru_reqs/s: {round(tru_reqs,2):<5}\ttotal: {log_infos.total_requests}"
         )
         
-        hour, minute, second = datetime.now().hour, datetime.now().minute, datetime.now().second
-        # print(f"hour: {hour}, minute: {minute}, second: {second}")
-        if minute == 0 and hour % 1 == 0 and second < 2:
-            title = "整点报时"
-            content = "日志记录\n"
-            content += "目前剩余课程为\n"
-            content += f"{[value['kcmc'] for value in log_infos.course_info.values()]}\n\n"
-            content += f"req/s: {round(reqs, 2):<5}\ttru_reqs/s: {round(tru_reqs,2):<5}\ttotal: {log_infos.total_requests}"
-            send_email(title, content)
-            del title
-            del content
-        del hour, minute, second
+        current_time = datetime.now()
+        if current_time.minute == 0 and current_time.second == 0:
+            asyncio.create_task(hourly_report(log_infos, reqs, tru_reqs))
 
         flush = False
         if settings.enabled_dynamic_requests and log_infos.toc - log_infos.tic > 5:
@@ -312,9 +309,9 @@ async def log(stop_signal):
         if flush:
             log_infos.reset(json_datas)
 
-        if log_infos.report_requests > 10000:
-            await request_report()
-            log_infos.report_requests = 0
+        # if log_infos.report_requests > 10000:
+        #     await request_report()
+        #     log_infos.report_requests = 0
 
         await asyncio.sleep(settings.log_interval_seconds)
 
@@ -367,9 +364,9 @@ async def main():
     semester_code = json_datas[0]["jczy013id"]
     logger.imp_info(f"学期：{code2semester(semester_code)}")
 
-    if settings.enabled_dynamic_requests and settings.target_requests_per_second > 30:
+    if settings.enabled_dynamic_requests and settings.target_requests_per_second > 50:
         logger.warning(
-            f"动态调整对请求速度过高的情况（{settings.target_requests_per_second }> 30）不适用，请自行查看日志确认速率是否符合要求"
+            f"动态调整对请求速度过高的情况（{settings.target_requests_per_second }> 50）不适用，请自行查看日志确认速率是否符合要求"
         )
         settings.enabled_dynamic_requests = False
 
